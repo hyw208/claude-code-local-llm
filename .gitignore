@@ -1,0 +1,21 @@
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Python Cache & Artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Configuration Files
+.env
+
+# Local Claude Configuration & Cache
+.claude/
+.headroom/
+/tmp/claude_local/
+
+# Logs & Learned Memory Files
+*.log
+MEMORY.md
