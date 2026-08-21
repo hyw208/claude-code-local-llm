@@ -35,6 +35,7 @@ graph LR
 - **Live Traffic Learning (`--learn`)**: Automatically learns error-recovery patterns, environment facts, and user preferences from proxy traffic and persists them to agent memory (`MEMORY.md`).
 - **Vector & SQLite Cross-Session Memory (`--memory`)**: Maintains a persistent local context database, injecting relevant past memories into prompt context.
 - **Reasoning Content Support (`reasoning_content`)**: Full support for streaming reasoning tokens emitted by reasoning models (Qwen 3.6, DeepSeek R1).
+- **Mobile & Thin-Client Access**: Full support for remote mobile access via browser web terminals (`ttyd`) or mobile SSH apps (Termius, Blink Shell) over Tailscale.
 - **Complete Protocol Support**: Native support for Anthropic streaming SSE, tool calls (`tool_use` and `tool_result`), multimodal base64 images, and non-streaming requests.
 - **Config Isolation**: Uses an isolated configuration directory (`/tmp/claude_local`), bypassing Anthropic OAuth browser logins while preserving your real `~/.claude.json` untouched.
 
@@ -188,12 +189,24 @@ ttyd -p 7681 tmux new-session -A -s claude "./start.sh /path/to/my-project --dan
 ```
 
 #### Step 4: Connect from Mac or Mobile Phone
-* **Mac Browser**: Open `http://<worker-pc-ip>:7681` in Chrome or Safari.
-* **Mac Terminal (SSH)**: Run `ssh user@<worker-pc-ip> -t "tmux a -t claude"`.
-* **Mobile Phone**: Open `http://<worker-pc-ip>:7681` in mobile Safari/Chrome or use [Termius](https://termius.com/) / [Blink Shell](https://blink.sh/) over Tailscale.
+
+##### 💻 Mac Access Options
+* **Mac Browser (Web UI)**: Open `http://<worker-pc-ip>:7681` in Chrome or Safari.
+* **Mac Terminal (SSH)**: Run `ssh user@<worker-pc-ip> -t "tmux a -t claude"` for native terminal keybindings.
+
+##### 📱 Mobile Access Options (iOS & Android)
+Your mobile phone acts as a lightweight remote control UI displaying real-time streaming tokens and accepting user prompts, while your Worker PC executes all code and SGLang GPU inference.
+
+* **Option A: Web App (No SSH App Needed)**:
+  Open `http://<worker-pc-ip>:7681` in Safari or Chrome on your phone. Tap **"Add to Home Screen"** to turn it into a full-screen mobile app!
+* **Option B: Mobile SSH App**:
+  Use [Termius](https://termius.com/) (iOS/Android) or [Blink Shell](https://blink.sh/) (iOS) over Tailscale:
+  ```bash
+  ssh user@<worker-pc-ip> -t "tmux a -t claude"
+  ```
 
 ### Key Advantages
-* 🔋 **Zero Mac Battery/CPU Drain**: All file processing and LLM inference happens on the Worker PC.
+* 🔋 **Zero Mac/Mobile Battery Drain**: All file processing and LLM inference happens on the Worker PC.
 * ⚡ **Ultra-Low Latency**: `proxy.py` and `SGLang` communicate over local `127.0.0.1` inside the Worker PC.
 * 🔄 **100% Session Persistence**: Closing your laptop lid or phone browser tab never kills Claude Code—reconnect anytime to pick up right where it left off.
 
