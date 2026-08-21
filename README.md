@@ -1,6 +1,8 @@
-# Local SGLang Integration for Claude Code with Headroom AI
+# Local & Remote SGLang Integration for Claude Code with Headroom AI
 
-A high-performance local integration for **Claude Code CLI** powered by the **Headroom AI** context optimization proxy (`headroom-ai`) and connected to a local/remote **SGLang** (or OpenAI-compatible) LLM server.
+A high-performance integration for **Claude Code CLI** powered by the **Headroom AI** context optimization proxy (`headroom-ai`) and connected to an **SGLang** (or OpenAI-compatible) LLM server.
+
+Supports both single-machine local execution and **Remote Worker & Thin-Client Architecture** (run heavy compute and LLM inference on a Worker PC and control seamlessly from a **Mac or Mobile Phone** via `ttyd` / `tmux` over Tailscale).
 
 ---
 ## Architecture Overview
