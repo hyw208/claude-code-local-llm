@@ -213,18 +213,25 @@ pip install headroom-ai fastapi uvicorn httpx
 ```
 
 #### Step 3: Launch Headroom Proxy & Session on Worker PC
-Run `ttyd` with the `-W` (`--writable`) flag wrapping a persistent `tmux` session so your session stays alive 24/7 even when disconnected:
+Create a persistent detached `tmux` session, then run `ttyd` with `-W` (`--writable`) attached to it:
 
 ```bash
-# On Worker PC: Start writable web terminal server on port 7681
-ttyd -W -p 7681 tmux new-session -A -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions"
+# 1. Create persistent background tmux session running start.sh
+tmux new-session -d -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions; exec bash" 2>/dev/null || true
+
+# 2. Serve the tmux session over web terminal on port 7681
+ttyd -W -p 7681 tmux attach-session -t claude
 ```
+
+> [!NOTE]
+> **Why this 2-step setup is solid**:
+> Separating session creation from `ttyd` ensures that browser refreshes or disconnects never kill your Claude Code session. If `start.sh` exits, `; exec bash` keeps the tmux window open so `ttyd` doesn't enter an infinite reconnect loop.
 
 > [!NOTE]
 > **Troubleshooting `ERROR on binding fd to port 7681`**:
 > If port `7681` is already in use by another process, kill the existing instance (`pkill ttyd`) or pick an alternate port like `-p 7682`:
 > ```bash
-> ttyd -W -p 7682 tmux new-session -A -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions"
+> ttyd -W -p 7682 tmux attach-session -t claude
 > ```
 
 #### Step 4: Connect from Mac or Mobile Phone
