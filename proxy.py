@@ -199,7 +199,7 @@ async def catch_all(request: Request, path: str):
         unified_system_prompt = "\n\n".join(system_blocks)
         openai_messages = [{"role": "system", "content": unified_system_prompt}]
         openai_messages.extend(conv_msgs)
-        char_count += len(unified_system_prompt) + msg_char_count
+        char_count = len(unified_system_prompt) + msg_char_count
 
         openai_tools = convert_tools(tools)
         estimated_input_tokens = int((char_count / 3.5) * 1.15) + 50
