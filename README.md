@@ -271,6 +271,23 @@ Your mobile phone acts as a lightweight remote control UI displaying real-time s
   ssh user@<worker-pc-ip> -t "tmux a -t claude"
   ```
 
+### Stopping the Remote Session on Worker PC
+
+To cleanly stop `ttyd`, terminate the background `tmux` session, and shut down proxy processes:
+
+```bash
+# 1. Stop the web terminal server (ttyd)
+pkill ttyd
+
+# 2. Terminate the background tmux session
+tmux kill-session -t claude
+
+# 3. Stop background proxy processes
+./stop.sh
+```
+
+*(Or run all 3 in a single command: `pkill ttyd; tmux kill-session -t claude 2>/dev/null; ./stop.sh`)*
+
 ### Key Advantages
 * 🔋 **Zero Mac/Mobile Battery Drain**: All file processing and LLM inference happens on the Worker PC.
 * ⚡ **Ultra-Low Latency**: `proxy.py` and `SGLang` communicate over local `127.0.0.1` inside the Worker PC.
