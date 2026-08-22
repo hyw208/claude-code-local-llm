@@ -10,12 +10,18 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
-# Ensure common Node/npm global bin paths are included in PATH for Headroom/Claude Code
-NPM_GLOBAL="$(npm config get prefix 2>/dev/null || true)"
-if [ -n "$NPM_GLOBAL" ] && [ -d "$NPM_GLOBAL/bin" ]; then
-    export PATH="$PATH:$NPM_GLOBAL/bin"
+# Ensure common Node/npm global bin paths are included at the FRONT of PATH
+export PATH="$HOME/.npm-global/bin:$(npm config get prefix 2>/dev/null || true)/bin:$PATH:$HOME/.nvm/versions/node/$(node -v 2>/dev/null || true)/bin:/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin"
+
+# Automatically locate claude binary and symlink into .venv/bin so Headroom can always execute it
+CLAUDE_BIN_PATH="$(command -v claude 2>/dev/null || true)"
+if [ -z "$CLAUDE_BIN_PATH" ] && [ -f "$HOME/.npm-global/bin/claude" ]; then
+    CLAUDE_BIN_PATH="$HOME/.npm-global/bin/claude"
 fi
-export PATH="$PATH:$HOME/.npm-global/bin:$HOME/.nvm/versions/node/$(node -v 2>/dev/null || true)/bin:/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin"
+
+if [ -n "$CLAUDE_BIN_PATH" ] && [ -d "$SCRIPT_DIR/.venv/bin" ]; then
+    ln -sf "$CLAUDE_BIN_PATH" "$SCRIPT_DIR/.venv/bin/claude" 2>/dev/null || true
+fi
 
 WORK_DIR="$PWD"
 CLAUDE_ARGS=()
