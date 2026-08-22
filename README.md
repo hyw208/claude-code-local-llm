@@ -41,6 +41,35 @@ graph LR
 - **Complete Protocol Support**: Native support for Anthropic streaming SSE, tool calls (`tool_use` and `tool_result`), multimodal base64 images, and non-streaming requests.
 - **Config Isolation**: Uses an isolated configuration directory (`/tmp/claude_local`), bypassing Anthropic OAuth browser logins while preserving your real `~/.claude.json` untouched.
 
+## Installation & Setup
+
+### 1. Clone Repository
+```bash
+git clone https://github.com/hyw208/claude-code-local-llm.git
+cd claude-code-local-llm
+```
+
+### 2. Install Claude Code CLI (if not already installed)
+```bash
+npm install -g @anthropic-ai/claude-code
+```
+
+### 3. Create Virtual Environment & Install Dependencies
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
+
+### 4. Configure Environment Variables
+Copy `.env.example` to `.env` and update your target SGLang / OpenAI-compatible server URL:
+```bash
+cp .env.example .env
+```
+*(Optionally edit `.env` to set custom `SGLANG_URL`, `MODEL_NAME`, or proxy ports)*
+
+---
+
 ## Quick Start (Single Command)
 
 Start the wrapper script from anywhere. It automatically launches the Headroom proxy in the background, configures environment isolation, and launches Claude Code CLI:
@@ -55,20 +84,20 @@ You can run `start.sh` from any location or pass a target directory path:
 
 ```bash
 # Option 1: Pass target directory path directly
-/Users/dutch/Projects/claudecode/start.sh /path/to/my-project
+./start.sh /path/to/my-project
 
 # Option 2: Run start.sh from inside your target directory
 cd /path/to/my-project
-/Users/dutch/Projects/claudecode/start.sh
+/path/to/claude-code-local-llm/start.sh
 
 # Option 3: Use explicit -C / --cd flag
-/Users/dutch/Projects/claudecode/start.sh -C /path/to/my-project
+./start.sh -C /path/to/my-project
 ```
 
 ### Automated Execution Flag (`--dangerously-skip-permissions`)
 
 ```bash
-/Users/dutch/Projects/claudecode/start.sh /path/to/my-project --dangerously-skip-permissions
+./start.sh /path/to/my-project --dangerously-skip-permissions
 ```
 * **Without flag (`./start.sh`)**: Claude Code prompts for manual `[y/n]` approval before every file edit or shell command.
 * **With flag (`./start.sh --dangerously-skip-permissions`)**: Bypasses interactive prompts for automated execution.
