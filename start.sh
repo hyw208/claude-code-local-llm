@@ -11,6 +11,10 @@ done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
 # Ensure common Node/npm global bin paths are included in PATH for Headroom/Claude Code
+NPM_GLOBAL="$(npm config get prefix 2>/dev/null || true)"
+if [ -n "$NPM_GLOBAL" ] && [ -d "$NPM_GLOBAL/bin" ]; then
+    export PATH="$PATH:$NPM_GLOBAL/bin"
+fi
 export PATH="$PATH:$HOME/.npm-global/bin:$HOME/.nvm/versions/node/$(node -v 2>/dev/null || true)/bin:/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin"
 
 WORK_DIR="$PWD"
@@ -105,7 +109,17 @@ trap cleanup EXIT INT TERM
 
 sleep 1
 
-# 6. Export environment variables for isolated login bypass and Headroom routing
+# 6. Check if claude executable is available in PATH
+if ! command -v claude &>/dev/null; then
+    echo "========================================================"
+    echo " ⚠️ ERROR: 'claude' CLI executable was not found in PATH."
+    echo " Please install Claude Code globally on this machine:"
+    echo "   npm install -g @anthropic-ai/claude-code"
+    echo "========================================================"
+    exit 1
+fi
+
+# 7. Export environment variables for isolated login bypass and Headroom routing
 export CLAUDE_CONFIG_DIR="/tmp/claude_local"
 export ANTHROPIC_API_KEY="dummy-key"
 export ANTHROPIC_TARGET_API_URL="http://127.0.0.1:${PROXY_PORT}"
@@ -117,7 +131,7 @@ echo "  📂 Workspace: $WORK_DIR"
 echo "  🤖 Launching headroom wrap claude..."
 echo "========================================================"
 
-# 6. Launch Claude Code through Headroom's native wrapper (headroom wrap claude)
+# 8. Launch Claude Code through Headroom's native wrapper (headroom wrap claude)
 cd "$WORK_DIR"
 if [ ${#CLAUDE_ARGS[@]} -gt 0 ]; then
     "$SCRIPT_DIR/.venv/bin/headroom" wrap claude \
