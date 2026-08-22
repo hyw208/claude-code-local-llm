@@ -51,10 +51,26 @@ def convert_messages(messages):
     openai_messages = []
     char_count = 0
     last_user_prompt = ""
+    extra_system_prompts = []
 
     for msg in messages:
         role = msg.get("role")
         content = msg.get("content")
+
+        if role == "system":
+            if isinstance(content, str):
+                extra_system_prompts.append(content)
+                char_count += len(content)
+            elif isinstance(content, list):
+                for b in content:
+                    if isinstance(b, str):
+                        extra_system_prompts.append(b)
+                        char_count += len(b)
+                    elif isinstance(b, dict) and b.get("type") == "text":
+                        txt = b.get("text", "")
+                        extra_system_prompts.append(txt)
+                        char_count += len(txt)
+            continue
 
         if isinstance(content, str):
             openai_messages.append({"role": role, "content": content})
@@ -138,7 +154,7 @@ def convert_messages(messages):
                         last_user_prompt = prompt_val
                     openai_messages.append({"role": "user", "content": prompt_val})
 
-    return openai_messages, char_count, last_user_prompt
+    return openai_messages, char_count, last_user_prompt, extra_system_prompts
 
 @app.api_route("/{path:path}", methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"])
 async def catch_all(request: Request, path: str):
@@ -153,7 +169,7 @@ async def catch_all(request: Request, path: str):
     if "count_tokens" in path:
         messages = body_json.get("messages", [])
         system = body_json.get("system", "")
-        _, char_count, _ = convert_messages(messages)
+        _, char_count, _, _ = convert_messages(messages)
         char_count += len(str(system))
         estimated_tokens = int((char_count / 3.5) * 1.15) + 50
         return JSONResponse({"input_tokens": max(estimated_tokens, 10)})
@@ -166,22 +182,24 @@ async def catch_all(request: Request, path: str):
         tool_choice = body_json.get("tool_choice", None)
         is_streaming = body_json.get("stream", True)
 
-        openai_messages = []
-        char_count = 0
+        conv_msgs, msg_char_count, last_user_prompt, extra_system_prompts = convert_messages(messages)
+
+        system_blocks = []
         if system:
             if isinstance(system, list):
-                sys_str = "\n".join([s.get("text", "") if isinstance(s, dict) else str(s) for s in system])
+                system_blocks.append("\n".join([s.get("text", "") if isinstance(s, dict) else str(s) for s in system]))
             else:
-                sys_str = str(system)
-            sys_str += "\n\n[Directive: Be direct, precise, and concise. When tool calls are needed, invoke tools immediately without excessive preamble or lengthy reasoning.]"
-            openai_messages.append({"role": "system", "content": sys_str})
-            char_count += len(sys_str)
-        else:
-            openai_messages.append({"role": "system", "content": "[Directive: Be direct, precise, and concise. When tool calls are needed, invoke tools immediately without excessive preamble or lengthy reasoning.]"})
+                system_blocks.append(str(system))
 
-        conv_msgs, msg_char_count, last_user_prompt = convert_messages(messages)
+        if extra_system_prompts:
+            system_blocks.extend(extra_system_prompts)
+
+        system_blocks.append("[Directive: Be direct, precise, and concise. When tool calls are needed, invoke tools immediately without excessive preamble or lengthy reasoning.]")
+
+        unified_system_prompt = "\n\n".join(system_blocks)
+        openai_messages = [{"role": "system", "content": unified_system_prompt}]
         openai_messages.extend(conv_msgs)
-        char_count += msg_char_count
+        char_count += len(unified_system_prompt) + msg_char_count
 
         openai_tools = convert_tools(tools)
         estimated_input_tokens = int((char_count / 3.5) * 1.15) + 50
