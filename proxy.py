@@ -402,7 +402,8 @@ async def catch_all(request: Request, path: str):
                     if active_tool_calls:
                         final_stop_reason = "tool_use"
 
-                    yield f"event: message_delta\ndata: {json.dumps({'type': 'message_delta', 'delta': {'stop_reason': final_stop_reason, 'stop_sequence': None}, 'usage': {'output_tokens': len(full_response_chunks)}})}\n\n"
+                    out_token_est = max(int(len("".join(full_response_chunks)) / 3.5), 1)
+                    yield f"event: message_delta\ndata: {json.dumps({'type': 'message_delta', 'delta': {'stop_reason': final_stop_reason, 'stop_sequence': None}, 'usage': {'output_tokens': out_token_est}})}\n\n"
                     yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
 
                     full_text = "".join(full_response_chunks).strip().replace("\n", " ")
