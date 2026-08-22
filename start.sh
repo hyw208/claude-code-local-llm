@@ -10,6 +10,9 @@ while [ -L "$SOURCE" ]; do
 done
 SCRIPT_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
 
+# Ensure common Node/npm global bin paths are included in PATH for Headroom/Claude Code
+export PATH="$PATH:$HOME/.npm-global/bin:$HOME/.nvm/versions/node/$(node -v 2>/dev/null || true)/bin:/usr/local/bin:/opt/homebrew/bin:$HOME/.local/bin"
+
 WORK_DIR="$PWD"
 CLAUDE_ARGS=()
 SHOW_HELP=false
