@@ -277,7 +277,7 @@ To cleanly stop `ttyd`, terminate the background `tmux` session, and shut down p
 
 ```bash
 # 1. Stop the web terminal server (ttyd)
-pkill ttyd
+pkill -u $USER ttyd || sudo pkill ttyd
 
 # 2. Terminate the background tmux session
 tmux kill-session -t claude
@@ -286,7 +286,7 @@ tmux kill-session -t claude
 ./stop.sh
 ```
 
-*(Or run all 3 in a single command: `pkill ttyd; tmux kill-session -t claude 2>/dev/null; ./stop.sh`)*
+*(Or run all in a single command: `pkill -u $USER ttyd 2>/dev/null || sudo pkill ttyd; tmux kill-session -t claude 2>/dev/null; ./stop.sh`)*
 
 ### Key Advantages
 * 🔋 **Zero Mac/Mobile Battery Drain**: All file processing and LLM inference happens on the Worker PC.
