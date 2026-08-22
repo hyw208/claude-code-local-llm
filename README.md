@@ -5,7 +5,10 @@ A high-performance integration for **Claude Code CLI** powered by the **Headroom
 Supports both single-machine local execution and **Remote Worker & Thin-Client Architecture** (run heavy compute and LLM inference on a Worker PC and control seamlessly from a **Mac or Mobile Phone** via `ttyd` / `tmux` over Tailscale).
 
 ---
+
 ## Architecture Overview
+
+### Single Machine / Local Architecture
 
 ```mermaid
 graph LR
@@ -22,11 +25,34 @@ graph LR
     HR -->|"Optimized SSE Stream"| CLI
 ```
 
+### Remote Worker & Thin Client Architecture (Mobile & Mac)
+
+```mermaid
+graph TD
+    subgraph ThinClient ["📱 Mobile Phone / 💻 Mac (Thin Client)"]
+        CLIENT["Web Browser (ttyd:7681) / SSH Client (Termius / iTerm)"]
+    end
+
+    subgraph WorkerPC ["🖥️ Worker PC (Heavy Compute)"]
+        SERVER["ttyd / tmux Session"]
+        CLI["Claude Code CLI"]
+        HR["Headroom Proxy (port 8787)"]
+        PY["Protocol Translation Bridge (proxy.py:4000)"]
+        CODE["Workspace Codebase"]
+        SGL["SGLang Inference Server (port 8000)"]
+    end
+
+    CLIENT -->|"Tailscale / WebSockets / SSH"| SERVER
+    SERVER <--> CLI
+    CLI <--> CODE
+    CLI --> HR --> PY --> SGL
+```
+
 ### Component Roles
 
 1. **Claude Code CLI**: The local developer CLI agent executing tools, reading code, and managing git tasks.
 2. **Headroom Optimization Proxy (`headroom proxy`)**: Runs natively on port `8787`. Compresses prompt context (AST code structures, verbose JSON, repeated tool outputs), tracks cross-session memory, and handles live traffic learning (`--learn`).
-3. **Protocol Translation Bridge (`proxy.py`)**: Runs on port `4000`. Translates Anthropic messages and tool calls into OpenAI Chat Completions format, extracts both standard text content and reasoning content (`reasoning_content` thinking tokens), and streams Anthropic SSE events back to Headroom.
+3. **Protocol Translation Bridge (`proxy.py`)**: Runs on port `4000`. Translates Anthropic messages and tool calls into OpenAI Chat Completions format, extracts standard text and reasoning content (`reasoning_content` thinking tokens), and streams Anthropic SSE events back to Headroom.
 4. **SGLang Inference Server**: Runs `Qwen/Qwen3.6-27B-FP8` (or any OpenAI-compatible LLM endpoint) on port `8000`.
 
 ---
@@ -41,46 +67,86 @@ graph LR
 - **Complete Protocol Support**: Native support for Anthropic streaming SSE, tool calls (`tool_use` and `tool_result`), multimodal base64 images, and non-streaming requests.
 - **Config Isolation**: Uses an isolated configuration directory (`/tmp/claude_local`), bypassing Anthropic OAuth browser logins while preserving your real `~/.claude.json` untouched.
 
-## Prerequisites
-
-Before setting up, ensure you have the following installed on your machine (or Worker PC):
-
-* **Node.js 18+ & npm**: Required to run Claude Code CLI.
-* **Python 3.10+**: Required for `proxy.py` and `headroom-ai`.
-* **Claude Code CLI**: Installed globally via `npm`:
-  ```bash
-  npm install -g @anthropic-ai/claude-code
-  ```
-* **SGLang / OpenAI-compatible LLM Server**: Running locally or accessible over network/Tailscale.
-
 ---
 
-## Installation & Setup
+## Prerequisites & Environment Setup
 
-### 1. Clone Repository
+Before running this project, ensure you have the following prerequisites installed on your system or Worker PC.
+
+### 1. Install Node.js 18+ & Configure User-Level `npm` (No `sudo` Required)
+
+To avoid `EACCES` permission errors when installing global npm packages on Linux:
+
 ```bash
-git clone https://github.com/hyw208/claude-code-local-llm.git
-cd claude-code-local-llm
+# 1. Create a user-owned directory for npm global packages
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+
+# 2. Add the user npm bin directory to your PATH
+echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 ```
 
 ### 2. Install Claude Code CLI
+
 ```bash
 npm install -g @anthropic-ai/claude-code
 ```
 
-### 3. Create Virtual Environment & Install Dependencies
+Verify installation:
 ```bash
+which claude
+# Output: /home/user/.npm-global/bin/claude
+
+claude --version
+```
+
+### 3. Install Remote Terminal Tools (For Remote Worker setup)
+
+```bash
+# macOS
+brew install ttyd tmux
+
+# Ubuntu / Debian
+sudo apt update && sudo apt install -y ttyd tmux
+```
+
+---
+
+## Installation & Configuration
+
+### 1. Clone Repository & Install Python Dependencies
+
+```bash
+git clone https://github.com/hyw208/claude-code-local-llm.git
+cd claude-code-local-llm
+
+# Initialize Python Virtual Environment
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 4. Configure Environment Variables
-Copy `.env.example` to `.env` and set your target SGLang / OpenAI-compatible server URL:
+### 2. Configure Environment Variables (`.env`)
+
+Copy `.env.example` to `.env` and set your target SGLang / OpenAI-compatible endpoint URL:
+
 ```bash
 cp .env.example .env
 ```
-*(Optionally edit `.env` to set custom `SGLANG_URL`, `MODEL_NAME`, or proxy ports)*
+
+Default `.env` contents:
+```env
+# Target SGLang / OpenAI-compatible endpoint URL
+SGLANG_URL=http://127.0.0.1:8000/v1/chat/completions
+
+# SGLang Model Identifier
+MODEL_NAME=Qwen/Qwen3.6-27B-FP8
+
+# Local Proxy Ports
+PROXY_PORT=4000
+HEADROOM_PORT=8787
+```
 
 ---
 
@@ -118,209 +184,86 @@ cd /path/to/my-project
 
 ---
 
-## Usage Reference
+## Remote Worker & Thin Client Guide (Mobile & Mac)
 
-### Command Syntax
+Run heavy compute (SGLang + Claude Code) on your **Worker PC** and control it from your **Mac or Mobile phone**.
 
-```bash
-./start.sh [DIRECTORY] [OPTIONS...]
-./start.sh -C <directory> [OPTIONS...]
-```
-
-### Script Arguments & Options
-
-| Option / Argument | Description |
-| :--- | :--- |
-| `DIRECTORY` | Path to target workspace directory for Claude Code to open in |
-| `-C, --cd <dir>` | Set target workspace directory |
-| `--dangerously-skip-permissions` | Bypass manual approval prompts for edits and shell commands |
-| `-p, --print [prompt]` | Run in non-interactive print mode |
-| `-c, --continue` | Continue the most recent conversation session |
-| `-r, --resume [id]` | Resume a specific session |
-| `-h, --help` | Show script usage summary and Claude Code options |
-
-### Stopping the Proxy
-
-To stop the background Headroom proxy process at any time:
-```bash
-./stop.sh
-```
-
-### Monitoring Logs & Savings
-
-View live incoming prompts, Headroom compression stats, and model responses:
-```bash
-tail -f /tmp/proxy.log
-```
-
----
-
-## Headroom CLI Utilities
-
-Because Headroom is installed in your `.venv`, you can use Headroom's native CLI suite to inspect savings and memory:
+### Step 1: Set Up Worker PC Environment
 
 ```bash
-# View durable token savings & compression metrics over time
-.venv/bin/headroom savings
+# 1. Install prerequisites on Worker PC
+sudo apt update && sudo apt install -y ttyd tmux nodejs npm
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH="$HOME/.npm-global/bin:$PATH"' >> ~/.bashrc
+source ~/.bashrc
 
-# Inspect original vs. compressed content for recent proxy requests
-.venv/bin/headroom inspect
-
-# Open the Headroom savings dashboard in your browser
-.venv/bin/headroom dashboard
-
-# Check proxy routing and dependencies health
-.venv/bin/headroom doctor
-
-# Manage stored cross-session memories
-.venv/bin/headroom memory list
-```
-
----
-
-## Remote Worker & Thin Client Architecture (Mobile & Mac)
-
-You can run Claude Code, Headroom, and SGLang on a powerful **Worker PC** (heavy compute) and interact with it from your **Mac or Mobile phone** as a lightweight thin client.
-
-### Remote Architecture Flow
-
-```mermaid
-graph TD
-    subgraph ThinClient ["📱 Mobile Phone / 💻 Mac (Thin Client)"]
-        CLIENT["Web Browser (ttyd:7681) / SSH Client (Termius / iTerm)"]
-    end
-
-    subgraph WorkerPC ["🖥️ Worker PC (Heavy Compute)"]
-        SERVER["ttyd / tmux Session"]
-        CLI["Claude Code CLI"]
-        HR["Headroom Proxy (port 8787)"]
-        PY["Protocol Translation Bridge (proxy.py:4000)"]
-        CODE["Workspace Codebase"]
-        SGL["SGLang Inference Server (port 8000)"]
-    end
-
-    CLIENT -->|"Tailscale / WebSockets / SSH"| SERVER
-    SERVER <--> CLI
-    CLI <--> CODE
-    CLI --> HR --> PY --> SGL
-```
-
-### Step-by-Step Remote Setup & Run Guide
-
-#### Step 1: Install Prerequisites on Worker PC
-Ensure Node.js, `npm`, `@anthropic-ai/claude-code`, `ttyd`, and `tmux` are installed on your Worker PC:
-```bash
-# macOS
-brew install ttyd tmux node
+# 2. Install Claude Code CLI
 npm install -g @anthropic-ai/claude-code
 
-# Ubuntu / Debian
-sudo apt update && sudo apt install -y ttyd tmux nodejs npm
-sudo npm install -g @anthropic-ai/claude-code
-```
-
-#### Step 2: Set Up Workspace & Dependencies on Worker PC
-Clone this repo to your Worker PC, configure `.env`, and initialize the Python virtual environment:
-```bash
+# 3. Clone repo & setup virtual environment
 git clone https://github.com/hyw208/claude-code-local-llm.git
 cd claude-code-local-llm
-
-# Initialize environment
 cp .env.example .env
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-#### Step 3: Launch Headroom Proxy & Session on Worker PC
-Create a persistent detached `tmux` session, then run `ttyd` with `-W` (`--writable`) attached to it:
+### Step 2: Launch Persistent Web Session on Worker PC
+
+Run `ttyd` with `-W` (`--writable`) attached to a background `tmux` session:
 
 ```bash
-# 1. Create persistent background tmux session running start.sh
+# 1. Create persistent background tmux session
 tmux new-session -d -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions; exec bash" 2>/dev/null || true
 
 # 2. Serve the tmux session over web terminal on port 7681
 ttyd -W -p 7681 tmux attach-session -t claude
 ```
 
-> [!NOTE]
-> **Why this 2-step setup is solid**:
-> Separating session creation from `ttyd` ensures that browser refreshes or disconnects never kill your Claude Code session. If `start.sh` exits, `; exec bash` keeps the tmux window open so `ttyd` doesn't enter an infinite reconnect loop.
+### Step 3: Connect from Mac or Mobile Phone
 
-> [!NOTE]
-> **Troubleshooting `ERROR on binding fd to port 7681`**:
-> If port `7681` is already in use by another process, kill the existing instance (`pkill ttyd`) or pick an alternate port like `-p 7682`:
-> ```bash
-> ttyd -W -p 7682 tmux attach-session -t claude
-> ```
+* **Mac Browser**: Open `http://<worker-pc-ip>:7681` in Chrome or Safari.
+* **Mac Terminal (SSH)**: Run `ssh user@<worker-pc-ip> -t "tmux a -t claude"`.
+* **Mobile Phone (iOS / Android)**:
+  - **Browser Web App**: Open `http://<worker-pc-ip>:7681` in mobile Safari/Chrome. Tap **"Add to Home Screen"** to turn it into a full-screen mobile app!
+  - **Mobile SSH**: Use [Termius](https://termius.com/) or [Blink Shell](https://blink.sh/) connected over Tailscale.
 
-#### Step 4: Connect from Mac or Mobile Phone
+---
 
-##### 💻 Mac Access Options
-* **Mac Browser (Web UI)**: Open `http://<worker-pc-ip>:7681` in Chrome or Safari.
-* **Mac Terminal (SSH)**: Run `ssh user@<worker-pc-ip> -t "tmux a -t claude"` for native terminal keybindings.
+## Stopping Sessions & Proxy Processes
 
-##### 📱 Mobile Access Options (iOS & Android)
-Your mobile phone acts as a lightweight remote control UI displaying real-time streaming tokens and accepting user prompts, while your Worker PC executes all code and SGLang GPU inference.
-
-* **Option A: Web App (No SSH App Needed)**:
-  Open `http://<worker-pc-ip>:7681` in Safari or Chrome on your phone. Tap **"Add to Home Screen"** to turn it into a full-screen mobile app!
-* **Option B: Mobile SSH App**:
-  Use [Termius](https://termius.com/) (iOS/Android) or [Blink Shell](https://blink.sh/) (iOS) over Tailscale:
-  ```bash
-  ssh user@<worker-pc-ip> -t "tmux a -t claude"
-  ```
-
-### Stopping the Remote Session on Worker PC
-
-To cleanly stop `ttyd`, terminate the background `tmux` session, and shut down proxy processes:
-
+### Stopping Local Sessions
 ```bash
-# 1. Stop the web terminal server (ttyd)
-pkill -u $USER ttyd || sudo pkill ttyd
-
-# 2. Terminate the background tmux session
-tmux kill-session -t claude
-
-# 3. Stop background proxy processes
 ./stop.sh
 ```
 
-*(Or run all in a single command: `pkill -u $USER ttyd 2>/dev/null || sudo pkill ttyd; tmux kill-session -t claude 2>/dev/null; ./stop.sh`)*
+### Stopping Remote Worker Sessions
+To cleanly shut down `ttyd`, the `tmux` session, and proxy processes on your Worker PC:
 
-### Key Advantages
-* 🔋 **Zero Mac/Mobile Battery Drain**: All file processing and LLM inference happens on the Worker PC.
-* ⚡ **Ultra-Low Latency**: `proxy.py` and `SGLang` communicate over local `127.0.0.1` inside the Worker PC.
-* 🔄 **100% Session Persistence**: Closing your laptop lid or phone browser tab never kills Claude Code—reconnect anytime to pick up right where it left off.
+```bash
+# User-scoped stop command
+pkill -u $USER ttyd 2>/dev/null || sudo pkill ttyd
+tmux kill-session -t claude 2>/dev/null || true
+./stop.sh
+```
 
 ---
 
-## Configuration & Isolation Details
+## Troubleshooting Guide
 
-### 1. Environment Configuration (`.env`)
-Copy `.env.example` to `.env` to customize your target server and port settings:
-
-```bash
-cp .env.example .env
-```
-
-| Environment Variable | Description | Default |
+| Issue / Error Message | Cause | Solution |
 | :--- | :--- | :--- |
-| `SGLANG_URL` | Target SGLang / OpenAI-compatible endpoint URL | `http://127.0.0.1:8000/v1/chat/completions` |
-| `MODEL_NAME` | Model ID string sent in completions request | `Qwen/Qwen3.6-27B-FP8` |
-| `PROXY_PORT` | Local FastAPI translation proxy port | `4000` |
-| `HEADROOM_PORT` | Headroom optimization proxy port | `8787` |
-
-### 2. Dual Config Setup (`~/.claude.json`)
-* **When running `./start.sh`**: Uses `CLAUDE_CONFIG_DIR="/tmp/claude_local"`. Claude Code completely **ignores** your home `~/.claude.json` and uses `/tmp/claude_local/.claude.json`.
-* **When running standard `claude`**: Uses your real `~/.claude.json` so you can switch back to Anthropic cloud anytime.
+| `Error: 'claude' not found in PATH` | Claude Code CLI is not installed or `~/.npm-global/bin` is missing from `PATH` | Run `npm install -g @anthropic-ai/claude-code` and `export PATH="$HOME/.npm-global/bin:$PATH"`. |
+| `pkill: killing pid failed: Operation not permitted` | Process belongs to another user/session | Use `pkill -u $USER ttyd` or `sudo pkill ttyd`. |
+| `ERROR on binding fd to port 7681 (-1 98)` | Port 7681 is already in use by an old `ttyd` process | Kill old instance (`pkill -u $USER ttyd`) or pass `-p 7682`. |
+| `The --writable option is not set` | `ttyd` launched in default read-only mode | Add `-W` flag: `ttyd -W -p 7681 ...`. |
+| `ttyd infinite reconnect loop` | `ttyd` command exited immediately when launched | Use the 2-step setup: create background session `tmux new-session -d -s claude "..."` then run `ttyd -W -p 7681 tmux attach-session -t claude`. |
+| `Invalid API key · Fix external API key` | Proxy target pointing at Headroom port instead of SGLang | Set `SGLANG_URL=http://<sglang-host>:8000/v1/chat/completions` in `.env`. |
 
 ---
 
-## Switching Back to Anthropic Cloud
+## License
 
-To return to standard Claude Code with Anthropic's cloud:
-```bash
-# Run standard claude in a clean terminal (uses your real ~/.claude.json)
-claude
-```
+MIT License. Free for open-source and commercial use.
