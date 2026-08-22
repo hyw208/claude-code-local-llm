@@ -2,4 +2,6 @@ fastapi>=0.100.0
 uvicorn>=0.20.0
 httpx>=0.24.0
 python-dotenv>=1.0.0
-headroom-ai
+headroom-ai[proxy]
+numpy
+mcp

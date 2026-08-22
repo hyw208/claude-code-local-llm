@@ -88,9 +88,13 @@ PROXY_PORT="${PROXY_PORT:-4000}"
 HEADROOM_PORT="${HEADROOM_PORT:-8787}"
 export SGLANG_URL="${SGLANG_URL:-http://127.0.0.1:8000/v1/chat/completions}"
 
-# 2. Activate Virtual Environment if available
+# 2. Activate Virtual Environment if available & ensure proxy extras are installed
 if [ -f "$SCRIPT_DIR/.venv/bin/activate" ]; then
     source "$SCRIPT_DIR/.venv/bin/activate"
+    if ! python -c "import headroom, numpy, mcp" &>/dev/null; then
+        echo "Installing Headroom proxy dependencies (headroom-ai[proxy], numpy, mcp)..."
+        pip install "headroom-ai[proxy]" numpy mcp >/dev/null 2>&1 || true
+    fi
 fi
 
 # 3. Setup isolated Claude config dir to bypass OAuth & browser login
