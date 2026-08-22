@@ -213,11 +213,19 @@ pip install headroom-ai fastapi uvicorn httpx
 ```
 
 #### Step 3: Launch Headroom Proxy & Session on Worker PC
-Run `ttyd` wrapping a persistent `tmux` session so your session stays alive 24/7 even when disconnected:
+Run `ttyd` with the `-W` (`--writable`) flag wrapping a persistent `tmux` session so your session stays alive 24/7 even when disconnected:
+
 ```bash
-# On Worker PC: Start web terminal server on port 7681
-ttyd -p 7681 tmux new-session -A -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions"
+# On Worker PC: Start writable web terminal server on port 7681
+ttyd -W -p 7681 tmux new-session -A -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions"
 ```
+
+> [!NOTE]
+> **Troubleshooting `ERROR on binding fd to port 7681`**:
+> If port `7681` is already in use by another process, kill the existing instance (`pkill ttyd`) or pick an alternate port like `-p 7682`:
+> ```bash
+> ttyd -W -p 7682 tmux new-session -A -s claude "./start.sh /path/to/my-project --dangerously-skip-permissions"
+> ```
 
 #### Step 4: Connect from Mac or Mobile Phone
 
