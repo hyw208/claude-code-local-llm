@@ -121,7 +121,7 @@ def convert_messages(messages):
 
             if role == "assistant":
                 oai_msg = {"role": "assistant"}
-                oai_msg["content"] = text_parts if any(isinstance(tp, dict) for tp in text_parts) else ("\n".join(text_parts) if text_parts else None)
+                oai_msg["content"] = text_parts if any(isinstance(tp, dict) for tp in text_parts) else ("\n".join(text_parts) if text_parts else "")
                 if tool_calls:
                     oai_msg["tool_calls"] = tool_calls
                 openai_messages.append(oai_msg)
@@ -202,7 +202,7 @@ async def catch_all(request: Request, path: str):
         if openai_tools:
             payload["tools"] = openai_tools
 
-        if tool_choice and isinstance(tool_choice, dict):
+        if tool_choice and isinstance(tool_choice, dict) and openai_tools:
             tc_type = tool_choice.get("type")
             if tc_type in ["auto", "any"]:
                 payload["tool_choice"] = "auto"
@@ -290,7 +290,18 @@ async def catch_all(request: Request, path: str):
 
             try:
                 async with http_client.stream("POST", HEADROOM_URL, json=payload) as response:
-                    print(f"[{timestamp()}] <-- Headroom Connection Status: {response.status_code}")
+                    print(f"[{timestamp()}] <-- SGLang Connection Status: {response.status_code}")
+                    if response.status_code != 200:
+                        error_bytes = await response.aread()
+                        err_msg = error_bytes.decode('utf-8', errors='replace')
+                        print(f"[{timestamp()}] !!! SGLang Error ({response.status_code}): {err_msg}")
+                        err_block = {"type": "text", "text": f"\n[SGLang Error {response.status_code}: {err_msg}]\n"}
+                        yield f"event: message_start\ndata: {json.dumps({'type': 'message_start', 'message': {'id': 'msg_err', 'type': 'message', 'role': 'assistant', 'content': [], 'model': model, 'stop_reason': 'end_turn', 'stop_sequence': None, 'usage': {'input_tokens': 0, 'output_tokens': 0}}})}\n\n"
+                        yield f"event: content_block_start\ndata: {json.dumps({'type': 'content_block_start', 'index': 0, 'content_block': err_block})}\n\n"
+                        yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': 0})}\n\n"
+                        yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
+                        return
+
                     yield f"event: message_start\ndata: {json.dumps({'type': 'message_start', 'message': {'id': 'msg_1', 'type': 'message', 'role': 'assistant', 'content': [], 'model': model, 'stop_reason': None, 'stop_sequence': None, 'usage': {'input_tokens': estimated_input_tokens, 'output_tokens': 0}}})}\n\n"
 
                     async for line in response.aiter_lines():
