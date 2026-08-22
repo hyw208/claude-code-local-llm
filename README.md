@@ -41,6 +41,20 @@ graph LR
 - **Complete Protocol Support**: Native support for Anthropic streaming SSE, tool calls (`tool_use` and `tool_result`), multimodal base64 images, and non-streaming requests.
 - **Config Isolation**: Uses an isolated configuration directory (`/tmp/claude_local`), bypassing Anthropic OAuth browser logins while preserving your real `~/.claude.json` untouched.
 
+## Prerequisites
+
+Before setting up, ensure you have the following installed on your machine (or Worker PC):
+
+* **Node.js 18+ & npm**: Required to run Claude Code CLI.
+* **Python 3.10+**: Required for `proxy.py` and `headroom-ai`.
+* **Claude Code CLI**: Installed globally via `npm`:
+  ```bash
+  npm install -g @anthropic-ai/claude-code
+  ```
+* **SGLang / OpenAI-compatible LLM Server**: Running locally or accessible over network/Tailscale.
+
+---
+
 ## Installation & Setup
 
 ### 1. Clone Repository
@@ -49,7 +63,7 @@ git clone https://github.com/hyw208/claude-code-local-llm.git
 cd claude-code-local-llm
 ```
 
-### 2. Install Claude Code CLI (if not already installed)
+### 2. Install Claude Code CLI
 ```bash
 npm install -g @anthropic-ai/claude-code
 ```
@@ -62,7 +76,7 @@ pip install -r requirements.txt
 ```
 
 ### 4. Configure Environment Variables
-Copy `.env.example` to `.env` and update your target SGLang / OpenAI-compatible server URL:
+Copy `.env.example` to `.env` and set your target SGLang / OpenAI-compatible server URL:
 ```bash
 cp .env.example .env
 ```
@@ -129,7 +143,7 @@ cd /path/to/my-project
 
 To stop the background Headroom proxy process at any time:
 ```bash
-/Users/dutch/Projects/claudecode/stop.sh
+./stop.sh
 ```
 
 ### Monitoring Logs & Savings
@@ -194,22 +208,28 @@ graph TD
 ### Step-by-Step Remote Setup & Run Guide
 
 #### Step 1: Install Prerequisites on Worker PC
-Ensure `ttyd` and `tmux` are installed on your Worker PC:
+Ensure Node.js, `npm`, `@anthropic-ai/claude-code`, `ttyd`, and `tmux` are installed on your Worker PC:
 ```bash
 # macOS
-brew install ttyd tmux
+brew install ttyd tmux node
+npm install -g @anthropic-ai/claude-code
 
 # Ubuntu / Debian
-sudo apt update && sudo apt install -y ttyd tmux
+sudo apt update && sudo apt install -y ttyd tmux nodejs npm
+sudo npm install -g @anthropic-ai/claude-code
 ```
 
-#### Step 2: Set Up Workspace on Worker PC
-Clone/copy this repo to your Worker PC and initialize the virtual environment:
+#### Step 2: Set Up Workspace & Dependencies on Worker PC
+Clone this repo to your Worker PC, configure `.env`, and initialize the Python virtual environment:
 ```bash
-cd /path/to/claudecode
+git clone https://github.com/hyw208/claude-code-local-llm.git
+cd claude-code-local-llm
+
+# Initialize environment
+cp .env.example .env
 python3 -m venv .venv
 source .venv/bin/activate
-pip install headroom-ai fastapi uvicorn httpx
+pip install -r requirements.txt
 ```
 
 #### Step 3: Launch Headroom Proxy & Session on Worker PC
