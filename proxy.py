@@ -21,8 +21,11 @@ MODEL_NAME = os.environ.get("MODEL_NAME", "Qwen/Qwen3.6-27B-FP8")
 PROXY_PORT = int(os.environ.get("PROXY_PORT", "4000"))
 
 # Global persistent HTTP client for connection pooling (HTTP Keep-Alive)
+# Read/write timeout is intentionally high (local reasoning models can take
+# several minutes to finish a long generation) so the connection isn't cut
+# mid-stream, which was previously killing Claude Code sessions.
 http_client = httpx.AsyncClient(
-    timeout=httpx.Timeout(120.0, connect=10.0),
+    timeout=httpx.Timeout(1800.0, connect=10.0),
     limits=httpx.Limits(max_keepalive_connections=50, max_connections=200)
 )
 
@@ -235,7 +238,7 @@ async def catch_all(request: Request, path: str):
         # Handle non-streaming requests forwarded to Headroom Proxy
         if not is_streaming:
             try:
-                res = await http_client.post(HEADROOM_URL, json=payload, timeout=120.0)
+                res = await http_client.post(HEADROOM_URL, json=payload)
                 if res.status_code != 200:
                     return JSONResponse({"error": {"type": "api_error", "message": res.text}}, status_code=res.status_code)
 
@@ -412,8 +415,22 @@ async def catch_all(request: Request, path: str):
                     print(f"[{timestamp()}] <-- Headroom Response Output: \"{full_text}\" (Tools Called: {len(active_tool_calls)})")
 
             except Exception as e:
+                # If the connection to SGLang drops or times out mid-stream, still
+                # emit a valid SSE termination sequence. Previously this just
+                # logged and returned, leaving Claude Code's client waiting on a
+                # stream that would never close cleanly, which killed the session
+                # and forced the user to resume.
                 print(f"[{timestamp()}] !!! Error connecting to Headroom Proxy: {e}")
                 traceback.print_exc()
+
+                err_index = current_block_index
+                if text_block_open:
+                    yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': text_block_index})}\n\n"
+                err_block = {"type": "text", "text": f"\n[Proxy connection error: {e}]\n"}
+                yield f"event: content_block_start\ndata: {json.dumps({'type': 'content_block_start', 'index': err_index, 'content_block': err_block})}\n\n"
+                yield f"event: content_block_stop\ndata: {json.dumps({'type': 'content_block_stop', 'index': err_index})}\n\n"
+                yield f"event: message_delta\ndata: {json.dumps({'type': 'message_delta', 'delta': {'stop_reason': 'end_turn', 'stop_sequence': None}, 'usage': {'output_tokens': 1}})}\n\n"
+                yield f"event: message_stop\ndata: {json.dumps({'type': 'message_stop'})}\n\n"
 
         sse_headers = {
             "Cache-Control": "no-cache",
